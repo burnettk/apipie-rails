@@ -51,6 +51,33 @@ namespace :apipie do
     end
   end
 
+  desc "Generate static documentation json"
+  task :swagger_json, [:version] => :environment do |t, args|
+    with_loaded_documentation do
+      args.with_defaults(:version => Apipie.configuration.default_version)
+      out = ENV["OUT"] || File.join(::Rails.root, 'doc', 'apidoc', 'swagger')
+      ([nil] + Apipie.configuration.languages).each do |lang|
+        doc = Apipie.to_swagger_json(args[:version], nil, nil, lang)
+        root_doc = doc.clone
+        root_doc[:apis] = root_doc[:apis].map do |api_metadata|
+          api_metadata.only(:path, :description)
+        end
+        root_doc.delete(:basePath)
+        generate_root_swagger_json(out, root_doc, lang)
+        doc[:apis].each do |api_resource|
+          resource_doc = doc.clone
+          path = api_resource[:path]
+          resource_doc[:apis] = resource_doc[:apis].select {|r| r[:path] == path }
+          resource_doc[:apis] = resource_doc[:apis].first[:methods]
+          resource_name = path[1..-1] # lop off leading slash
+          resource_doc[:resourcePath] = path
+          resource_doc.delete(:info)
+          generate_swagger_resource_json(out, resource_doc, resource_name, lang)
+        end
+      end
+    end
+  end
+
   # By default the full cache is built.
   # It is possible to generate index resp. resources only with
   # rake apipie:cache cache_part=index (resources resp.)
@@ -126,6 +153,20 @@ namespace :apipie do
     FileUtils.mkdir_p(file_base) unless File.exists?(file_base)
 
     filename = "schema_apipie#{lang_ext(lang)}.json"
+    File.open("#{file_base}/#{filename}", 'w') { |file| file.write(JSON.pretty_generate(doc)) }
+  end
+
+  def generate_root_swagger_json(file_base, doc, lang = nil)
+    FileUtils.mkdir_p(file_base) unless File.exists?(file_base)
+
+    filename = "index#{lang_ext(lang)}.json"
+    File.open("#{file_base}/#{filename}", 'w') { |file| file.write(JSON.pretty_generate(doc)) }
+  end
+
+  def generate_swagger_resource_json(file_base, doc, resource_name, lang = nil)
+    FileUtils.mkdir_p(file_base) unless File.exists?(file_base)
+
+    filename = "#{resource_name}#{lang_ext(lang)}.json"
     File.open("#{file_base}/#{filename}", 'w') { |file| file.write(JSON.pretty_generate(doc)) }
   end
 

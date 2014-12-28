@@ -286,6 +286,57 @@ module Apipie
       }
     end
 
+    def to_swagger_json(version, resource_name, method_name, lang)
+      original_json = to_json(version, resource_name, method_name, lang)
+      swagger_json = original_json[:docs]
+      swagger_json[:apiVersion] = version.to_s
+      swagger_json[:swaggerVersion] = '1.2'
+      app_name = swagger_json.delete(:name)
+      swagger_json[:basePath] = swagger_json.delete(:api_url)
+      swagger_json[:info] = {
+        appName: app_name,
+        title: app_name,
+        description: swagger_json.delete(:info)
+      }
+      swagger_json[:apis] = swagger_json.delete(:resources).map do |resource_name, metadata|
+
+        metadata[:methods] = metadata[:methods].map do |method|
+          details_including_http_method = method.delete(:apis)
+          if details_including_http_method.size != 1
+            raise "each 'method' must have one api in order to generate swagger docs (as currently serialized)"
+          end
+          details_hash = details_including_http_method.first
+          details_hash[:httpMethod] = details_hash.delete(:http_method)
+          method[:parameters] = method.delete(:params).map do |param|
+            param_type = (param[:metadata] && param[:metadata][:param_type]) || 'body'
+            param.remap(expected_type: :dataType).merge(paramType: param_type).only(:name, :description, :paramType, :required, :dataType)
+          end
+          method = method.remap(name: :nickname, full_description: :summary) #[:parameters] = method.delete(:params)
+          method[:responseMessages] = method.delete(:errors).map do |error|
+            error.remap(description: :message).except(:metadata)
+          end
+          method.merge(details_hash).except(:examples, :metadata, :short_description, :deprecated, :doc_url, :see)
+        end
+        grouped_methods = metadata[:methods].group_by do |method|
+          api_url = method[:api_url]
+          api_url.slice!(swagger_json[:basePath]) if api_url.starts_with?(swagger_json[:basePath])
+          api_url
+        end
+
+        metadata[:methods] = grouped_methods.map do |path, methods|
+          {
+            path: path,
+            operations: methods.map {|method| method.except(:api_url) }
+          }
+        end
+
+        metadata.merge(path: "/#{resource_name}", description: metadata.delete(:short_description))
+      end
+
+      swagger_json = swagger_json.except(:copyright, :doc_url)
+      swagger_json
+    end
+
     def api_controllers_paths
       Dir.glob(Apipie.configuration.api_controllers_matcher)
     end
