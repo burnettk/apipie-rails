@@ -338,7 +338,11 @@ module Apipie
     end
 
     def api_controllers_paths
-      Dir.glob(Apipie.configuration.api_controllers_matcher)
+      if Apipie.configuration.api_controllers_matcher
+        Dir.glob(Apipie.configuration.api_controllers_matcher)
+      else
+        raise RuntimeError, 'You must specify an Apipie.configuration.api_controllers_matcher'
+      end
     end
 
     def reload_documentation
