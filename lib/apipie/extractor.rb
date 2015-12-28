@@ -16,8 +16,10 @@ class Apipie::Railtie
       end
     end
     app.middleware.use ::Apipie::Extractor::Recorder::Middleware
-    ActionController::TestCase::Behavior.instance_eval do
-      include Apipie::Extractor::Recorder::FunctionalTestRecording
+    if Rails.env.test?
+      ActionController::TestCase::Behavior.instance_eval do
+        include Apipie::Extractor::Recorder::FunctionalTestRecording
+      end
     end
   end
 end
