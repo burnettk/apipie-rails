@@ -4,7 +4,7 @@ require "apipie/version"
 
 Gem::Specification.new do |s|
   s.name        = "apipie-rails-swagger"
-  s.version     = '0.2.9'
+  s.version     = '0.2.10'
   s.authors     = ["Pavel Pokorny","Ivan Necas"]
   s.email       = ["pajkycz@gmail.com", "inecas@redhat.com"]
   s.homepage    = "http://github.com/Pajk/apipie-rails"
@@ -18,7 +18,7 @@ Gem::Specification.new do |s|
 
   s.add_development_dependency "rails", ">= 3.0.10"
   s.add_dependency 'json'
-  s.add_development_dependency "rspec-rails"
+  # s.add_development_dependency "rspec-rails"
   s.add_development_dependency "sqlite3"
   s.add_development_dependency "minitest"
   s.add_development_dependency "maruku"
