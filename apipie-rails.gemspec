@@ -4,7 +4,7 @@ require "apipie/version"
 
 Gem::Specification.new do |s|
   s.name        = "apipie-rails-swagger"
-  s.version     = '0.2.10'
+  s.version     = '0.2.11'
   s.authors     = ["Pavel Pokorny","Ivan Necas"]
   s.email       = ["pajkycz@gmail.com", "inecas@redhat.com"]
   s.homepage    = "http://github.com/Apipie/apipie-rails"
