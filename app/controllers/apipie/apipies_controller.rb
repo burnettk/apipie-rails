@@ -1,9 +1,12 @@
 module Apipie
   class ApipiesController < ActionController::Base
+    include ActionView::Context
+    include ApipieHelper
+
     layout Apipie.configuration.layout
 
-    around_filter :set_script_name
-    before_filter :authenticate
+    around_action :set_script_name
+    before_action :authenticate
 
     def authenticate
       if Apipie.configuration.authenticate
@@ -12,7 +15,6 @@ module Apipie
     end
 
     def index
-
       params[:version] ||= Apipie.configuration.default_version
 
       get_format
@@ -26,9 +28,12 @@ module Apipie
 
         @language = get_language
 
-        Apipie.reload_documentation if Apipie.configuration.reload_controllers?
+        Apipie.load_documentation if Apipie.configuration.reload_controllers? || (Rails.version.to_i >= 4.0 && !Rails.application.config.eager_load)
+
         I18n.locale = @language
         @doc = Apipie.to_json(params[:version], params[:resource], params[:method], @language)
+
+        @doc = authorized_doc
 
         format.json do
           if @doc
@@ -71,9 +76,10 @@ module Apipie
     end
 
     private
+    helper_method :heading
 
     def get_language
-      lang = nil
+      lang = Apipie.configuration.default_locale
       [:resource, :method, :version].each do |par|
         if params[par]
           splitted = params[par].split('.')
@@ -86,11 +92,35 @@ module Apipie
       lang
     end
 
+    def authorized_doc
+      return if @doc.nil?
+      return @doc unless Apipie.configuration.authorize
+
+      new_doc = { :docs => @doc[:docs].clone }
+
+      new_doc[:docs][:resources] = @doc[:docs][:resources].select do |k, v|
+        if instance_exec(k, nil, v, &Apipie.configuration.authorize)
+          v[:methods] = v[:methods].select do |h|
+            instance_exec(k, h[:name], h, &Apipie.configuration.authorize)
+          end
+          true
+        else
+          false
+        end
+      end
+
+      new_doc
+    end
+
     def get_format
       [:resource, :method, :version].each do |par|
-        if params[par]
-          params[:format] = :html unless params[par].sub!('.html', '').nil?
-          params[:format] = :json unless params[par].sub!('.json', '').nil?
+        next unless params[par]
+        [:html, :json].each do |format|
+          extension = ".#{format}"
+          if params[par].include?(extension)
+            params[par] = params[par].sub(extension, '')
+            params[:format] = format
+          end
         end
       end
       request.format = params[:format] if params[:format]

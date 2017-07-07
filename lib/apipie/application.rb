@@ -9,8 +9,8 @@ module Apipie
   class Application
     # we need engine just for serving static assets
     class Engine < Rails::Engine
-      initializer "static assets" do |app|
-        app.middleware.use ::Apipie::StaticDispatcher, "#{root}/app/public", Apipie.configuration.doc_base_url
+      initializer "static assets", :before => :build_middleware_stack do |app|
+        app.middleware.use ::Apipie::StaticDispatcher, "#{root}/app/public"
       end
     end
 
@@ -53,14 +53,10 @@ module Apipie
 
     # the app might be nested when using contraints, namespaces etc.
     # this method does in depth search for the route controller
-    def route_app_controller(app, route)
-      if app.respond_to?(:controller)
-        return app.controller(route.defaults)
-      elsif app.respond_to?(:app)
-        return route_app_controller(app.app, route)
+    def route_app_controller(app, route, visited_apps = [])
+      if route.defaults[:controller]
+        (route.defaults[:controller].camelize + "Controller").constantize
       end
-    rescue ActionController::RoutingError
-      # some errors in the routes will not stop us here: just ignoring
     end
 
     def routes_for_action(controller, method, args)
@@ -277,7 +273,7 @@ module Apipie
       {
         :docs => {
           :name => Apipie.configuration.app_name,
-          :info => translate(Apipie.app_info(version), lang),
+          :info => Apipie.app_info(version, lang),
           :copyright => Apipie.configuration.copyright,
           :doc_url => Apipie.full_url(url_args),
           :api_url => Apipie.api_base_url(version),
@@ -360,6 +356,13 @@ module Apipie
       locale = old_locale
     end
 
+    def load_documentation
+      if !@documentation_loaded || Apipie.configuration.reload_controllers?
+        Apipie.reload_documentation
+        @documentation_loaded = true
+      end
+    end
+
     def compute_checksum
       if Apipie.configuration.use_cache?
         file_base = File.join(Apipie.configuration.cache_dir, Apipie.configuration.doc_base_url)
@@ -368,7 +371,7 @@ module Apipie
           all_docs[File.basename(f, '.json')] = JSON.parse(File.read(f))
         end
       else
-        reload_documentation if available_versions == []
+        load_documentation if available_versions == []
         all_docs = Apipie.available_versions.inject({}) do |all, version|
           all.update(version => Apipie.to_json(version))
         end
@@ -439,7 +442,7 @@ module Apipie
     def version_prefix(klass)
       version = controller_versions(klass).first
       base_url = get_base_url(version)
-      return "/" if base_url.nil?
+      return "/" if base_url.blank?
       base_url[1..-1] + "/"
     end
 
@@ -476,10 +479,10 @@ module Apipie
     # as this would break loading of the controllers.
     def rails_mark_classes_for_reload
       unless Rails.application.config.cache_classes
-        ActionDispatch::Reloader.cleanup!
+        Rails::VERSION::MAJOR == 4 ? ActionDispatch::Reloader.cleanup! : Rails.application.reloader.reload!
         init_env
         reload_examples
-        ActionDispatch::Reloader.prepare!
+        Rails::VERSION::MAJOR == 4 ? ActionDispatch::Reloader.prepare! : Rails.application.reloader.prepare!
       end
     end
 

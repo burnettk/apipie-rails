@@ -25,14 +25,16 @@ module Apipie
          :api_from_routes   => nil,
          :errors            => [],
          :params            => [],
-         :resouce_id        => nil,
+         :headers           => [],
+         :resource_id        => nil,
          :short_description => nil,
          :description       => nil,
          :examples          => [],
          :see               => [],
          :formats           => nil,
          :api_versions      => [],
-         :meta              => nil
+         :meta              => nil,
+         :show              => true
        }
       end
     end
@@ -110,6 +112,13 @@ module Apipie
         _apipie_dsl_data[:examples] << example.strip_heredoc
       end
 
+      # Determine if the method should be included
+      # in the documentation
+      def show(show)
+        return unless Apipie.active_dsl?
+        _apipie_dsl_data[:show] = show
+      end
+
       # Describe whole resource
       #
       # Example:
@@ -129,7 +138,6 @@ module Apipie
         end
         Apipie.set_controller_versions(self, versions)
       end
-
     end
 
     module Common
@@ -215,7 +223,7 @@ module Apipie
               if Apipie.configuration.validate_presence?
                 method_params.each do |_, param|
                   # check if required parameters are present
-                  raise ParamMissing.new(param.name) if param.required && !params.has_key?(param.name)
+                  raise ParamMissing.new(param) if param.required && !params.has_key?(param.name)
                 end
               end
 
@@ -229,7 +237,7 @@ module Apipie
               # Only allow params passed in that are defined keys in the api
               # Auto skip the default params (format, controller, action)
               if Apipie.configuration.validate_key?
-                params.reject{|k,_| %w[format controller action].include?(k.to_s) }.each_key do |param|
+                params.reject{|k,_| %w[format controller action].include?(k.to_s) }.each_pair do |param, _|
                   # params allowed
                   raise UnknownParam.new(param) if method_params.select {|_,p| p.name.to_s == param.to_s}.empty?
                 end
@@ -268,6 +276,23 @@ module Apipie
         @method_params[method]
       end
 
+      # Describe request header.
+      #  Headers can't be validated with config.validate_presence = true
+      #
+      # Example:
+      #   header 'ClientId', "client-id"
+      #   def show
+      #     render :text => headers['HTTP_CLIENT_ID']
+      #   end
+      #
+      def header(header_name, description, options = {}) #:doc
+        return unless Apipie.active_dsl?
+        _apipie_dsl_data[:headers] << {
+          name: header_name,
+          description: description,
+          options: options
+        }
+      end
     end
 
     # this describes the params, it's in separate module because it's
@@ -376,20 +401,7 @@ module Apipie
         super
         return if !Apipie.active_dsl? || !_apipie_dsl_data[:api]
 
-        if _apipie_dsl_data[:api_from_routes]
-          desc = _apipie_dsl_data[:api_from_routes][:desc]
-          options = _apipie_dsl_data[:api_from_routes][:options]
-
-          api_from_routes = Apipie.routes_for_action(self, method_name, {:desc => desc, :options => options}).map do |route_info|
-            [route_info[:verb],
-             route_info[:path],
-             route_info[:desc],
-             (route_info[:options] || {}).merge(:from_routes => true)]
-          end
-          _apipie_dsl_data[:api_args].concat(api_from_routes)
-        end
-
-        return if _apipie_dsl_data[:api_args].blank?
+        return if _apipie_dsl_data[:api_args].blank? && _apipie_dsl_data[:api_from_routes].blank?
 
         # remove method description if exists and create new one
         Apipie.remove_method_description(self, _apipie_dsl_data[:api_versions], method_name)

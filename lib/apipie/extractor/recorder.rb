@@ -38,7 +38,7 @@ module Apipie
         @verb = request.request_method.to_sym
         @path = request.path
         @params = request.request_parameters
-        if [:POST, :PUT].include?(@verb)
+        if [:POST, :PUT, :PATCH, :DELETE].include?(@verb)
           @request_data = @params
         else
           @query = request.query_string
@@ -48,9 +48,9 @@ module Apipie
       end
 
       def parse_data(data)
-        return nil if data.to_s =~ /^\s*$/
+        return nil if data.strip.blank?
         JSON.parse(data)
-      rescue StandardError => e
+      rescue StandardError
         data
       end
 
@@ -145,12 +145,8 @@ module Apipie
       end
 
       module FunctionalTestRecording
-        def self.included(base)
-          base.alias_method_chain :process, :api_recording
-        end
-
-        def process_with_api_recording(*args) # action, parameters = nil, session = nil, flash = nil, http_method = 'GET')
-          ret = process_without_api_recording(*args)
+        def process(*args) # action, parameters = nil, session = nil, flash = nil, http_method = 'GET')
+          ret = super(*args)
           if Apipie.configuration.record
             Apipie::Extractor.call_recorder.analyze_functional_test(self)
             Apipie::Extractor.call_finished

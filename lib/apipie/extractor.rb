@@ -9,17 +9,15 @@ require 'apipie/extractor/collector'
 class Apipie::Railtie
   initializer 'apipie.extractor' do |app|
     ActiveSupport.on_load :action_controller do
-      before_filter do |controller|
+      before_action do |controller|
         if Apipie.configuration.record
           Apipie::Extractor.call_recorder.analyse_controller(controller)
         end
       end
     end
     app.middleware.use ::Apipie::Extractor::Recorder::Middleware
-    if Rails.env.test?
-      ActionController::TestCase::Behavior.instance_eval do
-        include Apipie::Extractor::Recorder::FunctionalTestRecording
-      end
+    ActionController::TestCase::Behavior.instance_eval do
+      prepend Apipie::Extractor::Recorder::FunctionalTestRecording
     end
   end
 end

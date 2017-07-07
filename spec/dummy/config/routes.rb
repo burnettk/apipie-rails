@@ -10,7 +10,7 @@ Dummy::Application.routes.draw do
       end
       resources :concerns, :only => [:index, :show]
       namespace :files do
-        get '/*file_path', to: :download, format: false
+        get '/*file_path', format: false, :action => 'download'
       end
       resources :twitter_example do
         collection do
@@ -26,4 +26,5 @@ Dummy::Application.routes.draw do
     apipie
   end
   root :to => 'apipie/apipies#index'
+  match '(/)*path' => redirect('http://www.example.com'), :via => :all
 end

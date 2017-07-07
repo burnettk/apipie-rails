@@ -17,14 +17,13 @@ module Apipie
 
     end
 
-    attr_reader :full_description, :method, :resource, :apis, :examples, :see, :formats, :metadata
+    attr_reader :full_description, :method, :resource, :apis, :examples, :see, :formats, :metadata, :headers, :show
 
     def initialize(method, resource, dsl_data)
       @method = method.to_s
       @resource = resource
       @from_concern = dsl_data[:from_concern]
-
-      @apis = dsl_data[:api_args].map do |mthd, path, desc, opts|
+      @apis = api_data(dsl_data).map do |mthd, path, desc, opts|
         MethodDescription::Api.new(mthd, concern_subst(path), concern_subst(desc), opts)
       end
 
@@ -49,6 +48,13 @@ module Apipie
         Apipie::ParamDescription.from_dsl_data(self, args)
       end
       @params_ordered = ParamDescription.unify(@params_ordered)
+      @headers = dsl_data[:headers]
+
+      @show = if dsl_data.has_key? :show
+        dsl_data[:show]
+      else
+        true
+      end
     end
 
     def id
@@ -143,7 +149,9 @@ module Apipie
         :params => params_ordered.map{ |param| param.to_json(lang) }.flatten,
         :examples => @examples,
         :metadata => @metadata,
-        :see => see.map(&:to_json)
+        :see => see.map(&:to_json),
+        :headers => headers,
+        :show => @show
       }
     end
 
@@ -153,6 +161,23 @@ module Apipie
     end
 
     private
+
+    def api_data(dsl_data)
+      ret = dsl_data[:api_args].dup
+      if dsl_data[:api_from_routes]
+        desc = dsl_data[:api_from_routes][:desc]
+        options = dsl_data[:api_from_routes][:options]
+
+        api_from_routes = Apipie.routes_for_action(resource.controller, method, {:desc => desc, :options => options}).map do |route_info|
+          [route_info[:verb],
+           route_info[:path],
+           route_info[:desc],
+           (route_info[:options] || {}).merge(:from_routes => true)]
+        end
+        ret.concat(api_from_routes)
+      end
+      ret
+    end
 
     def merge_params(params, new_params)
       new_param_names = Set.new(new_params.map(&:name))

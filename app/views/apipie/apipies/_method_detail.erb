@@ -7,15 +7,7 @@
 
 <% unless method[:errors].blank? %>
   <%= heading(t('apipie.errors'), h_level) %>
-  <% method[:errors].each do |err| %>
-    <%= err[:code] %>
-    <%= err[:description] %>
-    <br>
-    <% unless err[:metadata].blank? %>
-      Metadata:
-      <pre class="prettyprint lang-yaml"><%= err[:metadata].to_yaml %></pre>
-    <% end %>
-  <% end %>
+  <%= render(:partial => "errors", :locals => {:errors => method[:errors]}) %>
 <% end %>
 
 <% unless method[:metadata].blank? %>
@@ -44,3 +36,5 @@
     </tbody>
   </table>
 <% end %>
+
+<%= render(:partial => "headers", :locals => {:headers => method[:headers], :h_level => h_level }) %>

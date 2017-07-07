@@ -19,7 +19,7 @@ namespace :apipie do
   task :static, [:version] => :environment do |t, args|
     with_loaded_documentation do
       args.with_defaults(:version => Apipie.configuration.default_version)
-      out = ENV["OUT"] || File.join(::Rails.root, 'doc', 'apidoc')
+      out = ENV["OUT"] || File.join(::Rails.root, Apipie.configuration.doc_path, 'apidoc')
       subdir = File.basename(out)
       copy_jscss(out)
       Apipie.configuration.version_in_url = false
@@ -43,7 +43,7 @@ namespace :apipie do
   task :static_json, [:version] => :environment do |t, args|
     with_loaded_documentation do
       args.with_defaults(:version => Apipie.configuration.default_version)
-      out = ENV["OUT"] || File.join(::Rails.root, 'doc', 'apidoc')
+      out = ENV["OUT"] || File.join(::Rails.root, Apipie.configuration.doc_path, 'apidoc')
       ([nil] + Apipie.configuration.languages).each do |lang|
         doc = Apipie.to_json(args[:version], nil, nil, lang)
         generate_json_page(out, doc, lang)
@@ -132,7 +132,12 @@ namespace :apipie do
                 else
                   File.expand_path("../../../app/views/apipie/apipies", __FILE__)
                 end
-    @apipie_renderer = ActionView::Base.new(base_path)
+    layouts_path = if File.directory?("#{Rails.root}/app/views/layouts/apipie")
+                     "#{Rails.root}/app/views/layouts"
+                   else
+                     File.expand_path("../../../app/views/layouts", __FILE__)
+                   end
+    @apipie_renderer = ActionView::Base.new([base_path, layouts_path])
     @apipie_renderer.singleton_class.send(:include, ApipieHelper)
     return @apipie_renderer
   end
@@ -145,7 +150,7 @@ namespace :apipie do
       end
       f.write av.render(
         :template => "#{template}",
-        :layout => (layout && "../../layouts/apipie/#{layout}"))
+        :layout => (layout && "apipie/#{layout}"))
     end
   end
 
@@ -273,7 +278,7 @@ MESSAGE
 
   desc "Convert your examples from the old yaml into the new json format"
   task :convert_examples => :environment do
-    yaml_examples_file = File.join(Rails.root, "doc", "apipie_examples.yml")
+    yaml_examples_file = File.join(Rails.root, Apipie.configuration.doc_path, "apipie_examples.yml")
     if File.exists?(yaml_examples_file)
       #if SafeYAML gem is enabled, it will load examples as an array of Hash, instead of hash
       if defined? SafeYAML
